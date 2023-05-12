@@ -46,6 +46,8 @@
             <div class="container has-text-centered">
                 <h1 class="title">SimonBitsBytes</h1>
                 <h3>Unleashing my tech musings, one line of code at a time.</h3>
+                <br/>
+                <h3><a href="https://github.com/SimonBitsBytes" target="_blank">GitHub</a> &emsp;|&emsp; <a href="mailto:simon.leungHK@gmail.com">Email</a></h3>
             </div>
         </div>
     </section>
@@ -55,7 +57,8 @@
         <!-- START ARTICLE FEED -->
         <section class="articles">
             <div class="column is-8 is-offset-2">
-      <!-- START ARTICLE -->
+
+                 <!-- START ARTICLE -->
                 <div class="card article">
                     <div class="card-content">
                         <div class="media">
@@ -63,78 +66,459 @@
                                 <img src="https://avatars.githubusercontent.com/u/133181313?v=4" class="author-image" alt="Placeholder image">
                             </div>
                             <div class="media-content has-text-centered">
-                                <p class="title article-title">Sapien eget mi proin sed 🔱</p>
+                                <p class="title article-title">A Journey Into File Recovery in C</p>
                                 <p class="subtitle is-6 article-subtitle">
-                                    <a href="https://github.com/SimonBitsBytes" target="_blank">Simon Leung</a> on February 17, 202X
+                                    <a href="https://github.com/SimonBitsBytes" target="_blank">Simon Leung</a> on February 17, 2015
                                 </p>
                             </div>
                         </div>
                         <div class="content article-body">
-                            <p>
-                                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Accumsan lacus vel facilisis volutpat est velit egestas. Sapien eget mi proin sed. Sit amet mattis vulputate enim.
-                            </p>
-                            <pre><code class="language-c">
-#include <stdio.h>
-int main() {
-    // printf() displays the string inside quotation
-    printf("Hello, World!");
-    return 0;
-}                   
-                            </code></pre>
-                            <p>
-                                Commodo ullamcorper a lacus vestibulum sed arcu. Fermentum leo vel orci porta non. Proin fermentum leo vel orci porta non pulvinar. Imperdiet proin fermentum leo vel. Tortor posuere ac ut consequat semper viverra. Vestibulum lectus mauris ultrices eros.
-                                When $a \ne 0$, there are two solutions to \(ax^2 + bx + c = 0\) and they are
-                                $$x = {-b \pm \sqrt{b^2-4ac} \over 2a}.$$                            </p>
 
-                            <h3 class="has-text-centered">Lectus vestibulum mattis ullamcorper velit sed ullamcorper morbi. Cras tincidunt lobortis feugiat vivamus.</h3>
-                            <p>
-                                In eu mi bibendum neque egestas congue quisque egestas diam. Enim nec dui nunc mattis enim ut tellus. Ut morbi tincidunt augue interdum velit euismod in. At in tellus integer feugiat scelerisque varius morbi enim nunc. Vitae suscipit tellus mauris a diam.
-                                Arcu non sodales neque sodales ut etiam sit amet.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+<p>Today, I want to share with you a chapter from my academic journey at The Chinese University of Hong Kong (CUHK), specifically from one of the enlightening courses I had the privilege of taking - CSC3150, Introduction to Operating Systems, taught by the insightful Dr. T.Y. Wong.</p>
+
+<p>In this course, one particular assignment that piqued my interest and challenged my understanding was creating a program in C to recover deleted files in a FAT32 system. This assignment not only offered a deep dive into the complexities of file systems but also demonstrated the intricate interconnectedness of various operating system components.</p>
+
+<p>However, I must mention here that the actual implementation of such a program is quite complex, involving numerous intricate details. Therefore, this blog post is intended to provide an overview of the process, shedding light on the core concepts and supplementing them with relevant code snippets, rather than serving as a comprehensive guide to implementing the complete program.</p>
+
+<h4>The FAT32 File System</h4>
+
+<p>Before we dive in, let's take a moment to familiarize ourselves with FAT32. FAT32, short for File Allocation Table 32, is a type of file system introduced by Microsoft in 1996. It was designed to overcome the limitations of its predecessor, FAT16, and has been widely used in various types of storage devices, such as hard drives, flash memory cards, and USB flash drives. The "32" in FAT32 refers to the fact that data is stored in 32-bit clusters, allowing for a substantial increase in the maximum number of allocatable clusters, and thus the maximum disk size.
+</p>
+
+<p>
+    FAT32 is a complex system with its own unique intricacies and nuances. If you're not already familiar with it, I highly recommend taking a look at the detailed introductions available at <a href="http://www.tavi.co.uk/phobos/fat.html" target="_blank">A tutorial on the FAT file system - Tavi Systems</a> and <a href="https://www.pjrc.com/tech/8051/ide/fat32.html" target="_blank">Paul's 8051 Code Library: Understanding the FAT32 Filesystem</a>. These resources provide a comprehensive overview of the FAT32 file system, making them excellent starting points for anyone looking to learn more. For the purpose of this blog, I'll be assuming you're familiar with the basics of FAT32. Now, let's dive into the world of file recovery!
+</p>
+
+<h4>FAT32 Data Structures</h4>
+
+<p>
+In our file recovery program, we're going to utilize two data structures: BootEntry and DirEntry. Let me explain their roles and how they relate to the FAT32 file system.
+</p>
+
+<pre><code class="language-c">#pragma pack(push,1)
+    typedef struct BootEntry {
+      unsigned char  BS_jmpBoot[3];     // Assembly instruction to jump to boot code
+      unsigned char  BS_OEMName[8];     // OEM Name in ASCII
+      unsigned short BPB_BytsPerSec;    // Bytes per sector. Allowed values include 512, 1024, 2048, and 4096
+      unsigned char  BPB_SecPerClus;    // Sectors per cluster (data unit). Allowed values are powers of 2, but the cluster size must be 32KB or smaller
+      unsigned short BPB_RsvdSecCnt;    // Size in sectors of the reserved area
+      unsigned char  BPB_NumFATs;       // Number of FATs
+      unsigned short BPB_RootEntCnt;    // Maximum number of files in the root directory for FAT12 and FAT16. This is 0 for FAT32
+      unsigned short BPB_TotSec16;      // 16-bit value of number of sectors in file system
+      unsigned char  BPB_Media;         // Media type
+      unsigned short BPB_FATSz16;       // 16-bit size in sectors of each FAT for FAT12 and FAT16. For FAT32, this field is 0
+      unsigned short BPB_SecPerTrk;     // Sectors per track of storage device
+      unsigned short BPB_NumHeads;      // Number of heads in storage device
+      unsigned int   BPB_HiddSec;       // Number of sectors before the start of partition
+      unsigned int   BPB_TotSec32;      // 32-bit value of number of sectors in file system. Either this value or the 16-bit value above must be 0
+      unsigned int   BPB_FATSz32;       // 32-bit size in sectors of one FAT
+      unsigned short BPB_ExtFlags;      // A flag for FAT
+      unsigned short BPB_FSVer;         // The major and minor version number
+      unsigned int   BPB_RootClus;      // Cluster where the root directory can be found
+      unsigned short BPB_FSInfo;        // Sector where FSINFO structure can be found
+      unsigned short BPB_BkBootSec;     // Sector where backup copy of boot sector is located
+      unsigned char  BPB_Reserved[12];  // Reserved
+      unsigned char  BS_DrvNum;         // BIOS INT13h drive number
+      unsigned char  BS_Reserved1;      // Not used
+      unsigned char  BS_BootSig;        // Extended boot signature to identify if the next three values are valid
+      unsigned int   BS_VolID;          // Volume serial number
+      unsigned char  BS_VolLab[11];     // Volume label in ASCII. User defines when creating the file system
+      unsigned char  BS_FilSysType[8];  // File system type label in ASCII
+    } BootEntry;
+    #pragma pack(pop)
+    
+    #pragma pack(push,1)
+    typedef struct DirEntry {
+      unsigned char  DIR_Name[11];      // File name
+      unsigned char  DIR_Attr;          // File attributes
+      unsigned char  DIR_NTRes;         // Reserved
+      unsigned char  DIR_CrtTimeTenth;  // Created time (tenths of second)
+      unsigned short DIR_CrtTime;       // Created time (hours, minutes, seconds)
+      unsigned short DIR_CrtDate;       // Created day
+      unsigned short DIR_LstAccDate;    // Accessed day
+      unsigned short DIR_FstClusHI;     // High 2 bytes of the first cluster address
+      unsigned short DIR_WrtTime;       // Written time (hours, minutes, seconds
+      unsigned short DIR_WrtDate;       // Written day
+      unsigned short DIR_FstClusLO;     // Low 2 bytes of the first cluster address
+      unsigned int   DIR_FileSize;      // File size in bytes. (0 for directories)
+    } DirEntry;
+    #pragma pack(pop)</code></pre>
+
+<p>
+The BootEntry structure represents the boot sector, also known as the Reserved Sectors, of a FAT32 volume. This structure contains crucial metadata about the file system such as the number of reserved sectors (BPB_RsvdSecCnt), the number of FATs (BPB_NumFATs), and the size of a FAT (BPB_FATSz32). It also contains other important parameters like the bytes per sector (BPB_BytsPerSec), sectors per cluster (BPB_SecPerClus), and the starting cluster of the root directory (BPB_RootClus). All these fields will allow us to understand the layout of the FAT32 volume.
+</p><p>
+The DirEntry structure, on the other hand, represents the directory entries in the FAT32 file system. Each file or directory has a directory entry that describes its attributes. This includes the file's name (DIR_Name), the file attributes (DIR_Attr), the creation time and date (DIR_CrtTime and DIR_CrtDate), the last access date (DIR_LstAccDate), the first cluster address (DIR_FstClusHI and DIR_FstClusLO), and the file size (DIR_FileSize). We will be using this information to identify and recover the deleted files.
+</p><p>
+The #pragma pack(push,1) and #pragma pack(pop) directives are used to tell the compiler to pack the structure without any padding. This is crucial as these structures need to be the exact size as specified in the FAT32 specification for our program to read the correct data.
+</p><p>
+Now that we have our data structures ready, we can start building the actual recovery algorithm. Let's dive in!
+</p>
+
+<h4>Reading Files and Disk Information</h4>
+
+<p>Before the recovery, we must first have a way to access and list out all the files and contents in the FAT32 disk programatically. We can implement the getFileDirectory and readFileSystem and showDiskInformation functions in C as follows.</p>
+
+
+
+<pre><code class="language-c">unsigned int getFileDirectory(const char *diskName){
+    int fd = open(diskName, O_RDWR);
+    if (fd<0){
+        perror("Disk file could not be opened!");
+        exit(1);
+    }
+    return fd;
+}</code></pre>
+
+
+<p>The <b>getFileDirectory</b> function takes the diskName parameter, representing the name or path of the disk file to be recovered. The code opens the disk file using the open function with the O_RDWR flag to allow reading and writing operations. If the file fails to open, an error message is displayed using perror, and the program terminates. However, if the file opens successfully, the function returns the file descriptor (fd) associated with the opened disk file. This file descriptor is crucial for subsequent operations, enabling navigation, analysis, and recovery of lost or deleted files within the FAT32 file system.</p>
+
+<pre><code class="language-c">BootEntry* readFileSystem(int fd){
+
+    BootEntry *disk = mmap(NULL, sizeof(BootEntry), PROT_READ, MAP_PRIVATE, fd, 0);
+    if (disk==NULL){
+        perror("mmap failed");
+        exit(1);
+    }
+    return disk;
+}</code></pre>
+
+<p>The <b>readFileSystem</b> function takes an integer parameter fd, representing the file descriptor obtained from opening the disk file. It utilizes the mmap function to map the contents of the disk file into memory, specifically allocating memory for the BootEntry structure. The mmap function maps the disk file's content to a virtual memory address, allowing direct access to the file's data. If the mapping process fails and returns a NULL value, an error message is displayed using perror, and the program terminates. However, if the mapping is successful, the function returns a pointer to the BootEntry structure, enabling subsequent operations to read and interpret the file system's metadata and directory structure during the FAT32 file recovery process.</p>
+
+<pre><code class="language-c">void showDiskInformation(BootEntry* disk){
+    printf("Number of FATs = %d\n",be.BPB_NumFATs);	
+	printf("Size of a FAT(in sectors) =  %lu\n",be.BPB_FATSz32);
+	printf("Number of FAT entry = %lu\n",numFatEntry);	
+	printf("Number of bytes per sector = %d\n",be.BPB_BytsPerSec);
+	printf("Number of sectors per cluster = %d\n",be.BPB_SecPerClus);
+	printf("Number of reserved sectors = %d\n",be.BPB_RsvdSecCnt);
+	printf("FAT (1st) starts from(sector) = %ld\n", fat_secNum);
+	printf("Cluster 2 starts from(sector) = %ld\n",data_secNum);
+	printf("Root Dir  starts from(sector) = %ld\n",rootDir_secNum);
+    fflush(stdout);
+}</code></pre>
+
+<p>The <b>showDiskInformation</b> function, serves to display essential disk information relevant to the FAT32 file recovery process. The function takes a pointer to the BootEntry structure, named disk, as a parameter. It utilizes printf to print out key details about the disk, including the number of FATs, the number of bytes per sector, the number of sectors per cluster, and the number of reserved sectors. These details provide crucial insights into the disk's structure and organization, aiding in understanding the file system layout during the recovery process. By using fflush(stdout), the output is immediately displayed to the console, ensuring prompt visibility of the disk information.</p>
+
+
+<h4>Accessing the FAT32 Disk</h4>
+
+<p>Now that we have a way to access the disk file and read its contents, we can start navigating the FAT32 file system. We will now implement some more functions to explore the root directory of the file system.</p>
+
+<pre><code class="language-c">void showRootDirectory(DirEntry* dirEntry){
+    if (isDirectory(dirEntry)){
+        int idx = 0;
+        while(dirEntry->DIR_Name[idx]!=' '){
+            printf("%c",dirEntry->DIR_Name[idx]);
+            idx++;
+        }
+        printf("/");
+    }
+    else{
+        for(int i=0;i<8;i++){
+            if(dirEntry->DIR_Name[i]==' ')
+                break;
+            printf("%c",dirEntry->DIR_Name[i]);
+        }
+        if(dirEntry->DIR_Name[8]!=' '){
+            printf(".");
+            for(int i=8;i<12;i++){
+                    if(dirEntry->DIR_Name[i]==' ')
+                    break;
+                printf("%c",dirEntry->DIR_Name[i]);
+            }
+        }
+    }
+}</code></pre>
+
+
+<p>
+    The <b>showRootDirectory</b> function takes a pointer to the DirEntry structure, named dirEntry, as a parameter. It is responsible for displaying information about the root directory entries. If the dirEntry represents a directory (identified by the isDirectory function), the function iterates through the DIR_Name array until it encounters a space character, printing each character of the directory name. It appends a "/" to indicate that it is a directory. For non-directory entries, it prints the first 8 characters of the DIR_Name array as the filename. If the DIR_Name array's 8th character is not a space, it appends a "." and prints the remaining 3 characters as the file extension.
+</p>
+
+<pre><code class="language-c">void getRootDirectoryEntries(int fd, BootEntry* disk){
+unsigned int nEntries = 0;
+unsigned int currCluster = disk->BPB_RootClus;
+unsigned int totalPossibleEntry = (disk->BPB_SecPerClus * disk->BPB_BytsPerSec)/sizeof(DirEntry);
+
+unsigned char *file_content = getDisk(fd);
+
+do{
+    DirEntry* dirEntry = getclusterPtr(file_content,disk,currCluster);
+    for(int m=0;m<totalPossibleEntry;m++){
+        if (dirEntry->DIR_Attr == 0x00){        // no more dirEntry after this
+            break;
+        }
+
+        if(dirEntry->DIR_Name[0] != 0xe5){      // do not show deleted files
+            showRootDirectory(dirEntry);
+            int startCluster = dirEntry->DIR_FstClusHI << 16 | dirEntry->DIR_FstClusLO;
+            nEntries++;
+        }
+        dirEntry++;
+    }
+    unsigned int *fat = (unsigned int*)(file_content + disk->BPB_RsvdSecCnt*disk->BPB_BytsPerSec + 4*currCluster);
+    if(*fat >= 0x0ffffff8 || *fat==0x00){
+        break;
+    }
+    currCluster=*fat;
+} while(1);
+printf("Total number of entries = %d\n",nEntries);
+}</code></pre>
+
+<p>The <b>getRootDirectoryEntries</b> function takes the file descriptor fd and a pointer to the BootEntry structure, named disk, as parameters. This function is responsible for retrieving and displaying the root directory entries. It begins by calculating the total number of possible entries within a cluster. Then, it retrieves the file's content using the getDisk function. The function enters a loop to process each cluster in the root directory. Within the loop, it obtains a pointer to the current cluster's DirEntry using the getclusterPtr function. It iterates through each possible entry, checking if it is a valid entry and not a deleted file. For each valid entry, it calls the showRootDirectory function to display the entry's information, including the filename, file size, and starting cluster. It increments the count of entries (nEntries) with each valid entry. The loop continues until there are no more valid clusters to process. Finally, it prints the total number of entries.</p>
+
+<h4>Useful Equations</h4>
+
+
+<p>For the FAT32 system in our case, you can use the following equations to do some useful calculations.</p>
+
+<p>
+    $$\begin{align*}
+    \text{BytesPerCluster} &= \text{BPB_BytsPerSec} \times \text{BPB_SecPerClus} \\ \\
+    \text{FirstDataSector} &= \text{BPB_RsvdSecCnt} \\+ (\text{BPB_NumFATs} \times \text{BPB_FATSz32}) \\ \\
+    \text{RootDirStart} &= ((\text{BPB_RootClus} - 2) \times \text{BytesPerCluster}) \\+ (\text{FirstDataSector} \times \text{BPB_BytsPerSec}) \\ \\
+    \text{MaxEntriesPerCluster} &= \frac{\text{BytesPerCluster}}{\text{sizeof(DirEntry)}}
+    \end{align*}$$
+                                    
+                                </p>
+
+<h4>Recovering deleted file in FAT32 Disk</h4>
+
+<p>Finally we will implement the helper functions and the actual recovery function as follows.</p>
+
+<pre><code class="language-c">int updateDirEntry(ULONG addr,DirEntry * entry){
+    /* keep the old position */
+    ULONG original = lseek(fd,0,SEEK_CUR);
+    int result = lseek(fd,addr,SEEK_SET);
+    if( result == -1 || write(fd,entry,sizeof(DirEntry)) == -1 )
+        report_exit("update dir entry error!\n");
+    /* recover the old position */
+    lseek(fd,original,SEEK_SET);
+    return 1;
+}</code></pre>
+
+<p>
+    The <b>int updateDirEntry(ULONG addr, DirEntry* entry)</b> function updates a DirEntry structure in the file system at the specified address (addr). It first stores the current position in the file using lseek and seeks to the provided address. It then writes the entry to the file using the write function. If there are any errors during seeking or writing, the function reports an error and terminates. Finally, it restores the original position in the file using lseek and returns 1 to indicate a successful update.
+</p>
+
+<pre><code class="language-c">ULONG write_sectors(ULONG sector_number, unsigned char *buffer, ULONG num_sectors) {
+    ULONG currpos = lseek(fd,0,SEEK_CUR);
+    ULONG dest, len;
+    dest = lseek(fd, sector_number*bps, SEEK_SET);
+    if (dest != sector_number*bps) {
+        printf("Error in writing sector: \ndest=%lu sector_number*bps=%lu\n",dest,sector_number*bps);
+    }
+    if(bps*num_sectors > MAXBUF) {
+        printf("Buffer size too small\n");
+    }
+    len = write(fd, buffer, bps*num_sectors);
+    if(len != bps*num_sectors) {
+        printf("Error in reading sector: len=%lu bps*num_sectors=%lu\n",len,bps*num_sectors);
+    }
+    lseek(fd,currpos,SEEK_SET);
+    return len;
+}</code></pre>
+<p>
+    The <b>ULONG write_sectors(ULONG sector_number, unsigned char* buffer, ULONG num_sectors)</b> function writes data from the buffer to the file system sectors starting from the specified sector_number for num_sectors. It first stores the current position in the file using lseek and seeks to the destination sector by calculating the offset based on the sector number and bytes per sector (bps). It then writes the data from the buffer to the file using the write function. If there are any errors during seeking or writing, the function reports an error. It restores the original position in the file using lseek and returns the number of bytes written.
+</p>
+
+<pre><code class="language-c">/* update an FAT in file system according to FAT buffer */
+int updateFat(int which){
+    /* since we store the FAT by entries, every entry is 4 Bytes */
+    return write_sectors(fat_addr + which*be.BPB_FATSz32,
+            (unsigned char *)FAT, be.BPB_FATSz32);
+}</code></pre>
+<p>The <b>int updateFat(int which)</b> function updates a specific FAT in the file system based on the provided which parameter. It calls the write_sectors function to write the FAT buffer (FAT) to the corresponding sectors in the file system. The sectors to be written are determined using the FAT address (fat_addr) and the FAT size (be.BPB_FATSz32). If the write operation is successful for all FATs, the function returns 1; otherwise, it returns 0.</p>
+
+<pre><code class="language-c">int updateAllFat(){
+    int i;
+    for(i=0;i < be.BPB_NumFATs;i++)
+    { 
+        if(updateFat(i) == 0){
+            return 0;
+    }
+    return 1;
+}
+</code></pre>
+
+<p>The <b>int updateAllFat()</b> function iterates over all the FATs in the file system and calls the updateFat function for each FAT. If the update operation fails for any FAT, it returns 0; otherwise, it returns 1 to indicate a successful update of all FATs.</p>
+
+<p>And finally, the recover file function.</p>
+
+<pre><code class="language-c">int recoverFile(char * filename){
+    char dirname[80],basename[20],deletename[20],name[9],ext[4];
+    if( getDirBaseName(dirname,basename,filename) == 0 )
+        report_exit("Invalid filename.\n");
+    memset(name,' ',sizeof(name));name[8]=0;
+    memset(ext,' ',sizeof(ext));ext[3]=0;
+    splitNameExt(name,ext,basename);
+    strcpy(deletename,basename);
+    deletename[0]=0xe5;
+
+    /* locate its containg directory */
+    DirEntry dirEntry,baseEntry;
+    ULONG value_addr;
+    if( locateFileInFS(dirname,&dirEntry) == 0) return 0;
+
+    /* search the deleted DirEntry */
+    int result = locateFileInDir(deletename,&dirEntry,&baseEntry,&value_addr);
+
+    /* recover the first character */
+    baseEntry.DIR_Name[0]=toupper(basename[0]);
+
+    /* update dir entry */
+    updateDirEntry(value_addr,&baseEntry);
+    
+    /* update FAT chain */
+    ULONG startCluster = getDirClusterNum(&baseEntry);
+    FAT[startCluster] = EOD;
+    updateAllFat();
+
+    return result;
+}</code></pre>
+<p>The <b>int recoverFile(char* filename)</b> function aims to recover a deleted file specified by the filename. It begins by extracting the directory and base name from the given filename. It checks the validity of the filename and splits it into name and extension components. The function then locates the containing directory by searching the file system. It further searches for the deleted DirEntry within the directory and recovers the file by updating the base entry's name, updating the directory entry using updateDirEntry, and updating the FAT chain. The FAT chain is updated by retrieving the starting cluster number from the base entry, modifying the FAT entry for that cluster, and calling updateAllFat to update all the FATs. The function returns the result of locating the deleted DirEntry and recovering the file.</p>
+
+<p>Put all of these in a C file and refactor as you need and hooray! You've just developed a file recovery tool on a FAT32 file system!</p>
+
+<h4>Real-world Applications</h4>
+
+<p>We've just scratched the surface of file system manipulation, and I'm sure you can see the potential applications. For instance, digital forensics experts often need to recover deleted files during their investigations. Similarly, data recovery services use these techniques to recover files from damaged or corrupted storage devices.</p>
+
+<p>Remember, with great power comes great responsibility. Use your newfound knowledge wisely, and always respect privacy and legal boundaries. Until next time, happy coding!</p>
+
+<p style="text-align:left;">
+Yours in Coding,<br/>
+Simon Leung
+</p>
+
+        </div>
+    </div>
+</div>
                 <!-- END ARTICLE -->
-                
-                      <!-- START ARTICLE -->
-                      <div class="card article">
-                        <div class="card-content">
-                            <div class="media">
-                                <div class="media-center">
-                                    <img src="https://avatars.githubusercontent.com/u/133181313?v=4" class="author-image" alt="Placeholder image">
-                                </div>
-                                <div class="media-content has-text-centered">
-                                    <p class="title article-title">Sapien eget mi proin sed 🔱</p>
-                                    <p class="subtitle is-6 article-subtitle">
-                                        <a href="https://github.com/SimonBitsBytes" target="_blank">Simon Leung</a> on February 17, 202X
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="content article-body">
-                                <p>
-                                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Accumsan lacus vel facilisis volutpat est velit egestas. Sapien eget mi proin sed. Sit amet mattis vulputate enim.
-                                </p>
-                                <pre><code class="language-c">
-    #include <stdio.h>
-    int main() {
-        // printf() displays the string inside quotation
-        printf("Hello, World!");
-        return 0;
-    }                   
-                                </code></pre>
-                                <p>
-                                    Commodo ullamcorper a lacus vestibulum sed arcu. Fermentum leo vel orci porta non. Proin fermentum leo vel orci porta non pulvinar. Imperdiet proin fermentum leo vel. Tortor posuere ac ut consequat semper viverra. Vestibulum lectus mauris ultrices eros.
-                                </p>
-                                <h3 class="has-text-centered">Lectus vestibulum mattis ullamcorper velit sed ullamcorper morbi. Cras tincidunt lobortis feugiat vivamus.</h3>
-                                <p>
-                                    In eu mi bibendum neque egestas congue quisque egestas diam. Enim nec dui nunc mattis enim ut tellus. Ut morbi tincidunt augue interdum velit euismod in. At in tellus integer feugiat scelerisque varius morbi enim nunc. Vitae suscipit tellus mauris a diam.
-                                    Arcu non sodales neque sodales ut etiam sit amet.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- END ARTICLE -->                
 
+
+
+
+<!-- START ARTICLE -->
+<div class="card article">
+    <div class="card-content">
+    <div class="media">
+    <div class="media-center">
+    <img src="https://avatars.githubusercontent.com/u/133181313?v=4" class="author-image" alt="Placeholder image">
+    </div>
+    <div class="media-content has-text-centered">
+    <p class="title article-title">File Handling and I/O Operations in C</p>
+    <p class="subtitle is-6 article-subtitle">
+    <a href="https://github.com/SimonBitsBytes" target="_blank">Simon Leung</a> on January 1, 2015
+    </p>
+    </div>
+    </div>
+    <div class="content article-body">
+<p>Files are the lifeblood of data storage, and understanding how to effectively manipulate them is a crucial skill for any C programmer. In this article, we will guide you through various file handling operations, including opening, reading, writing, and closing files. We will explore key concepts like file pointers, file modes, error handling, and binary file operations. Prepare to dive deep into practical examples that demonstrate the magic of reading from and writing to files. So, grab your code editor and let's unlock the power of data manipulation!</p>
+
+<h4>Opening and Closing Files</h4>
+<p>To perform operations on files, we must first learn how to open and close them. We will explore the fopen function, which opens a file and returns a file pointer that points to the opened file. We will cover different file modes such as reading, writing, and appending, and discuss how to handle file opening errors. Additionally, we will emphasize the significance of closing files using the fclose function to free system resources and ensure data integrity. An example program is as follows.</p>
+<pre><code class="language-c">#include <stdio.h>
+
+    int main() {
+        FILE* file = fopen("example.txt", "r");
+        if (file == NULL) {
+            printf("File opening failed!\n");
+            return 1;
+        }
+    
+        // Perform file operations
+    
+        fclose(file); // Close the file
+        return 0;
+    } </code></pre>
+
+
+<h4>Reading from Files</h4>
+<p>Reading data from files is a fundamental operation. We will explore various functions like fgetc, fgets, and fscanf to read data from files character by character, line by line, or based on specific formatting. We will discuss error handling during file reading and provide tips for efficient and safe reading operations. Here is how to read files in C.</p>
+<pre><code class="language-c">#include <stdio.h>
+
+    int main() {
+        FILE* file = fopen("example.txt", "r");
+        if (file == NULL) {
+            printf("File opening failed!\n");
+            return 1;
+        }
+    
+        int character;
+        while ((character = fgetc(file)) != EOF) {
+            // Process the character
+            printf("%c", character);
+        }
+    
+        fclose(file); // Close the file
+        return 0;
+    }</code></pre>
+
+<h4>Writing to Files</h4>
+<p>Writing data to files allows us to store information persistently. We will discuss functions like fputc, fputs, and fprintf to write data to files character by character, line by line, or based on specific formatting. We will explore different file modes for writing and cover error handling during file writing operations. Here's how you do it.</p>
+<pre><code class="language-c">#include <stdio.h>
+
+    int main() {
+        FILE* file = fopen("example.txt", "w");
+        if (file == NULL) {
+            printf("File opening failed!\n");
+            return 1;
+        }
+    
+        fprintf(file, "Hello, World!\n");
+        fputs("Welcome to the world of file handling.", file);
+    
+        fclose(file); // Close the file
+        return 0;
+    }</code></pre>
+
+<h4>Error Handling and File Status</h4>
+<p>Handling errors during file operations is essential for robust programming. We will discuss techniques for error detection and reporting, including checking return values, utilizing the ferror and feof functions, and understanding error codes. We will also explore file status functions like ftell and fseek for retrieving the current position and navigating within files.</p>
+
+<h4>Binary File Operations</h4>
+<p>Binary files contain raw data representations and are commonly used for storing complex data structures or large amounts of data. We will delve into binary file operations in C, covering functions like fwrite and fread to write and read binary data to and from files. We will discuss the importance of handling binary data correctly and demonstrate how to work with binary files effectively. Here is how you write to one.</p>
+<pre><code class="language-c">#include <stdio.h>
+
+    typedef struct {
+        int id;
+        char name[20];
+        float salary;
+    } Employee;
+    
+    int main() {
+        Employee employees[] = {
+            {1, "John Doe", 5000.0},
+            {2, "Jane Smith", 6000.0},
+            {3, "Alice Johnson", 5500.0}
+        };
+    
+        FILE* file = fopen("employees.bin", "wb");
+        if (file == NULL) {
+            printf("File opening failed!\n");
+            return 1;
+        }
+    
+        fwrite(employees, sizeof(Employee), sizeof(employees) / sizeof(Employee), file);
+    
+        fclose(file); // Close the file
+        return 0;
+    }</code></pre>
+
+    <h4>Conclusion</h4>
+    <p>Congratulations on completing this exhilarating journey into the world of file handling and I/O operations in C! We covered essential concepts like opening and closing files, reading from and writing to files, error handling, and binary file operations. Armed with this knowledge, you now have the power to manipulate files with confidence, efficiently storing and retrieving data for your applications. Remember to handle errors diligently, close files properly, and consider the appropriate file modes for your operations. Now, go forth and explore the vast possibilities of file manipulation in your C programs. Happy coding, and may your files be organized and your data flow seamlessly!</p>
+    <p style="text-align:left;">
+        Yours in Coding,<br/>
+        Simon Leung
+        </p>
+    </div>
+    </div>
+    </div>
+                    <!-- END ARTICLE -->
+                    
+<p style="text-align: center;">
+    <pre>Uncaught Error: Failed to load more posts due to an unknown reason. 
+Please check your network connection or contact the support team for further assistance.</pre> </p>
                 <!-- Add footer with space -->
                 <footer style="height:100px">
                 <div style="text-align: center;padding-top: 50px;">
@@ -145,6 +529,10 @@ int main() {
 
         </section>
         <!-- END ARTICLE FEED -->
+
+
+   
+        
         </div>
 
         <script src='https://cdnjs.cloudflare.com/ajax/libs/overlayscrollbars/1.9.1/js/OverlayScrollbars.min.js'></script>
